@@ -129,6 +129,19 @@ async def get_player(
     ).model_dump())
 
 
+@router.get("/players/batch")
+async def get_players_batch(
+    ids: str = Query(..., description="Comma-separated player IDs"),
+    db: AsyncSession = Depends(get_db),
+):
+    player_ids = [int(i) for i in ids.split(",") if i.strip().isdigit()]
+    if not player_ids:
+        return ApiResponse(data=[])
+    players = await player_service.get_players_by_ids(db, player_ids)
+    teams_map = await _get_teams_map(db)
+    return ApiResponse(data=[_player_to_summary(p, teams_map).model_dump() for p in players])
+
+
 @router.get("/players/{player_id}/stats")
 async def get_player_stats(
     player_id: int,
