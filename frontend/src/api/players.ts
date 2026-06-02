@@ -31,3 +31,9 @@ export async function searchPlayers(q: string, limit = 10): Promise<ApiResponse<
   const { data } = await client.get("/players/search", { params: { q, limit } })
   return data
 }
+
+export async function getPlayersBatch(ids: number[]): Promise<ApiResponse<PlayerSummary[]>> {
+  if (ids.length === 0) return { data: [] }
+  const { data } = await client.get("/players/batch", { params: { ids: ids.join(",") } })
+  return data
+}
