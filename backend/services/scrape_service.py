@@ -249,3 +249,38 @@ async def run_stats_scrape(db: AsyncSession, season: str = "2025-26") -> dict:
         log.completed_at = datetime.utcnow()
         await db.commit()
         raise
+
+
+HISTORICAL_SEASONS = [f"{y}-{str(y+1)[-2:]}" for y in range(1996, 2026)]
+
+
+async def run_historical_stats_scrape(db: AsyncSession) -> dict:
+    """Scrape stats for all seasons from 1996-97 to current."""
+    total_added = 0
+    total_updated = 0
+    failed_seasons = []
+
+    for season in HISTORICAL_SEASONS:
+        logger.info("Scraping season %s...", season)
+        try:
+            stats_data = await fetch_season_stats(season)
+            result = await _upsert_stats(db, stats_data, season)
+            total_added += result["added"]
+            total_updated += result["updated"]
+            await db.commit()
+            logger.info("Season %s: %d records", season, result["added"])
+        except Exception as e:
+            logger.error("Season %s failed: %s", season, e)
+            failed_seasons.append(season)
+            continue
+
+    # Update team associations from current season
+    team_updates = await _update_player_teams(db, "2025-26")
+    total_added += team_updates
+
+    return {
+        "added": total_added,
+        "updated": total_updated,
+        "seasons": len(HISTORICAL_SEASONS),
+        "failed_seasons": failed_seasons,
+    }
