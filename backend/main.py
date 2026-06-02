@@ -18,6 +18,18 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(na
 logger = logging.getLogger(__name__)
 
 
+async def scheduled_historical_scrape():
+    """Run historical scrape in background — can take 10-20 min for 30 seasons."""
+    from services.scrape_service import run_historical_stats_scrape
+    logger.info("Background: running historical stats scrape (30 seasons)...")
+    async with async_session() as db:
+        try:
+            result = await run_historical_stats_scrape(db)
+            logger.info("Background historical scrape done: %s", result)
+        except Exception as e:
+            logger.error("Background historical scrape failed: %s", e)
+
+
 async def scheduled_players_scrape():
     logger.info("Scheduled: running players scrape...")
     async with async_session() as db:
@@ -43,7 +55,8 @@ async def lifespan(app: FastAPI):
 
     # Auto-scrape on cold start if database is empty
     from sqlalchemy import select, func
-    from models.player import Team
+    from models.player import Team, PlayerStats
+    import asyncio
     async with async_session() as db:
         team_count = (await db.execute(select(func.count(Team.id)))).scalar() or 0
     if team_count == 0:
@@ -58,7 +71,16 @@ async def lifespan(app: FastAPI):
                 await run_stats_scrape(db)
             except Exception as e:
                 logger.error("Initial stats scrape failed: %s", e)
-        logger.info("Initial scrape completed")
+        # Kick off historical scrape in background (30 seasons, ~10-20 min)
+        asyncio.create_task(scheduled_historical_scrape())
+        logger.info("Initial scrape completed, historical scrape running in background")
+    else:
+        # Check if historical data is missing (e.g., DB restored from backup with only current season)
+        async with async_session() as db:
+            stats_count = (await db.execute(select(func.count(PlayerStats.id)))).scalar() or 0
+        if stats_count < 5000:
+            logger.info("Only %d stat records detected, running historical scrape in background...", stats_count)
+            asyncio.create_task(scheduled_historical_scrape())
 
     scheduler = AsyncIOScheduler()
     scheduler.add_job(scheduled_players_scrape, "cron", hour=3, minute=0)
