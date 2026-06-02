@@ -1,16 +1,42 @@
-import { useState } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { useSearchParams } from "react-router-dom"
 import { usePlayers } from "../hooks/usePlayers"
 import PlayerCard from "../components/players/PlayerCard"
 import PlayerTable from "../components/players/PlayerTable"
-import PlayerSearch from "../components/players/PlayerSearch"
 import FilterPanel from "../components/players/FilterPanel"
 import LoadingSkeleton from "../components/common/LoadingSkeleton"
 import EmptyState from "../components/common/EmptyState"
 import ErrorState from "../components/common/ErrorState"
 
+function DebouncedSearch({ defaultValue, onSearch }: { defaultValue?: string; onSearch: (v: string) => void }) {
+  const [value, setValue] = useState(defaultValue || "")
+  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  const debounced = useCallback((val: string) => {
+    if (timerRef.current) clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(() => onSearch(val), 300)
+  }, [onSearch])
+
+  useEffect(() => {
+    setValue(defaultValue || "")
+  }, [defaultValue])
+
+  return (
+    <input
+      type="text"
+      value={value}
+      placeholder="输入球员姓名自动搜索..."
+      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white placeholder-gray-500 outline-none focus:border-orange-500 transition-colors"
+      onChange={(e) => {
+        setValue(e.target.value)
+        debounced(e.target.value)
+      }}
+    />
+  )
+}
+
 export default function PlayersPage() {
-  const [searchParams, setSearchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams({})
 
   const page = Number(searchParams.get("page") || 1)
   const search = searchParams.get("search") || undefined
@@ -43,14 +69,13 @@ export default function PlayersPage() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4">
         <h1 className="text-2xl font-bold text-white">球员列表</h1>
         <div className="flex-1 max-w-sm">
-          <PlayerSearch
-            placeholder="搜索球员姓名..."
-            onSelect={() => {}}
+          <DebouncedSearch
+            defaultValue={search}
+            onSearch={(val) => updateParams({ search: val || undefined })}
           />
         </div>
       </div>
 
-      {/* Update search params when search changes — handled via the search component */}
       <FilterPanel
         teamId={teamId}
         position={position}
@@ -62,22 +87,6 @@ export default function PlayersPage() {
         onSortChange={(by, order) => updateParams({ sort_by: by, sort_order: order })}
         onViewModeChange={setViewMode}
       />
-
-      {/* Search bar that updates URL */}
-      <div className="mb-4 max-w-sm">
-        <input
-          type="text"
-          placeholder="搜索球员姓名（回车确认）..."
-          defaultValue={search}
-          className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white placeholder-gray-500 outline-none focus:border-orange-500 transition-colors"
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              const val = (e.target as HTMLInputElement).value.trim()
-              updateParams({ search: val || undefined })
-            }
-          }}
-        />
-      </div>
 
       {isLoading && <LoadingSkeleton count={12} variant={viewMode === "table" ? "row" : "card"} />}
       {isError && <ErrorState onRetry={() => refetch()} />}
