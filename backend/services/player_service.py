@@ -202,11 +202,9 @@ async def search_players(db: AsyncSession, query: str, limit: int = 10) -> list[
             selectinload(Player.stats),
         )
         .where(
-            and_(
-                Player.is_active == True,
-                or_(Player.name.ilike(like), Player.name_en.ilike(like)),
-            )
+            or_(Player.name.ilike(like), Player.name_en.ilike(like))
         )
+        .order_by(Player.is_active.desc(), Player.name)
         .limit(limit)
     )
     return list(result.scalars().all())
