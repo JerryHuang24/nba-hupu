@@ -3,6 +3,7 @@ import { useComparison } from "../hooks/useComparison"
 import PlayerSearch from "../components/players/PlayerSearch"
 import ComparisonRadarChart from "../components/stats/RadarChart"
 import EmptyState from "../components/common/EmptyState"
+import LoadingSkeleton from "../components/common/LoadingSkeleton"
 import { formatStat, formatPct } from "../lib/utils"
 import { COMPARE_STATS } from "../lib/constants"
 import type { PlayerComparisonItem, PlayerSearchResult } from "../types/player"
@@ -13,10 +14,16 @@ const STAT_LABEL_MAP: Record<string, string> = {
   mpg: "分钟", topg: "失误",
 }
 
+const SEASONS = Array.from({ length: 30 }, (_, i) => {
+  const y = 2026 - i
+  return `${y}-${String(y + 1).slice(-2)}`
+})
+
 export default function ComparePage() {
   const [selected, setSelected] = useState<PlayerSearchResult[]>([])
+  const [season, setSeason] = useState("2025-26")
   const ids = selected.map((s) => s.id)
-  const { data, isLoading } = useComparison(ids)
+  const { data, isLoading } = useComparison(ids, season)
 
   function addPlayer(p: PlayerSearchResult) {
     if (selected.length >= 5) return
@@ -48,12 +55,23 @@ export default function ComparePage() {
             </span>
           ))}
         </div>
-        <div className="max-w-sm">
-          <PlayerSearch
-            placeholder={selected.length >= 5 ? "最多对比5人" : "搜索并添加球员..."}
-            onSelect={addPlayer}
-            compact
-          />
+        <div className="flex items-center gap-3">
+          <div className="flex-1 max-w-sm">
+            <PlayerSearch
+              placeholder={selected.length >= 5 ? "最多对比5人" : "搜索并添加球员..."}
+              onSelect={addPlayer}
+              compact
+            />
+          </div>
+          <select
+            value={season}
+            onChange={(e) => setSeason(e.target.value)}
+            className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-orange-500"
+          >
+            {SEASONS.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -61,7 +79,7 @@ export default function ComparePage() {
         <EmptyState title="请至少选择 2 名球员" description="在上方搜索框中搜索并添加球员" />
       )}
 
-      {isLoading && <div className="text-center text-gray-400 py-10">加载中...</div>}
+      {isLoading && <LoadingSkeleton count={4} variant="row" />}
 
       {players.length >= 2 && (
         <>
