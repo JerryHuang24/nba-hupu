@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from models.player import Team, Player, PlayerStats
-from schemas.player import PaginationMeta
+from schemas.player import PaginationMeta, PlayerSummary, TeamOut, PlayerStatsOut
 
 logger = logging.getLogger(__name__)
 
@@ -221,3 +221,46 @@ async def search_players(db: AsyncSession, query: str, limit: int = 10) -> list[
         .limit(limit)
     )
     return list(result.scalars().all())
+
+
+async def get_teams_map(db: AsyncSession) -> dict[str, Team]:
+    result = await db.execute(select(Team))
+    return {t.abbreviation: t for t in result.scalars().all() if t.abbreviation}
+
+
+def player_to_summary(p: Player, teams_map: dict | None = None, season: str = "2025-26") -> PlayerSummary:
+    latest_stats = None
+    latest_stats_team = None
+    for s in (p.stats or []):
+        if s.season == season:
+            latest_stats = PlayerStatsOut.model_validate(s)
+            if s.team_abbreviation and teams_map:
+                latest_stats_team = teams_map.get(s.team_abbreviation)
+            break
+
+    team = None
+    if p.team:
+        team = TeamOut.model_validate(p.team)
+    elif latest_stats_team:
+        team = TeamOut.model_validate(latest_stats_team)
+
+    return PlayerSummary(
+        id=p.id,
+        nba_id=p.nba_id,
+        name=p.name,
+        name_en=p.name_en,
+        team=team,
+        jersey_number=p.jersey_number,
+        position=p.position,
+        height=p.height,
+        weight=p.weight,
+        country=p.country,
+        college=p.college,
+        draft_year=p.draft_year,
+        draft_round=p.draft_round,
+        draft_pick=p.draft_pick,
+        years_exp=p.years_exp,
+        is_active=p.is_active,
+        latest_stats=latest_stats,
+        image_url=f"https://cdn.nba.com/headshots/nba/latest/1040x760/{p.nba_id}.png" if p.nba_id else None,
+    )
