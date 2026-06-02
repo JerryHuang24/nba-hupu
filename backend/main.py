@@ -41,6 +41,25 @@ async def lifespan(app: FastAPI):
     await init_db()
     logger.info("Database initialized")
 
+    # Auto-scrape on cold start if database is empty
+    from sqlalchemy import select, func
+    from models.player import Team
+    async with async_session() as db:
+        team_count = (await db.execute(select(func.count(Team.id)))).scalar() or 0
+    if team_count == 0:
+        logger.info("Empty database detected, running initial scrape...")
+        async with async_session() as db:
+            try:
+                await run_players_scrape(db)
+            except Exception as e:
+                logger.error("Initial players scrape failed: %s", e)
+        async with async_session() as db:
+            try:
+                await run_stats_scrape(db)
+            except Exception as e:
+                logger.error("Initial stats scrape failed: %s", e)
+        logger.info("Initial scrape completed")
+
     scheduler = AsyncIOScheduler()
     scheduler.add_job(scheduled_players_scrape, "cron", hour=3, minute=0)
     scheduler.add_job(scheduled_stats_scrape, "cron", hour=4, minute=15)
