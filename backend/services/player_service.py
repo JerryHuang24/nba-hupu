@@ -193,6 +193,19 @@ async def get_team_players(db: AsyncSession, team_id: int) -> list[Player]:
     return list(result.scalars().all())
 
 
+async def get_players_by_ids(db: AsyncSession, player_ids: list[int]) -> list[Player]:
+    result = await db.execute(
+        select(Player)
+        .options(
+            selectinload(Player.team),
+            selectinload(Player.stats),
+        )
+        .where(Player.id.in_(player_ids))
+        .order_by(Player.name)
+    )
+    return list(result.unique().scalars().all())
+
+
 async def search_players(db: AsyncSession, query: str, limit: int = 10) -> list[Player]:
     like = f"%{query}%"
     result = await db.execute(
