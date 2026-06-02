@@ -13,6 +13,7 @@ router = APIRouter(prefix="/api")
 @router.get("/compare")
 async def compare_players(
     ids: str = Query(..., description="Comma-separated player IDs, 2-5"),
+    season: str = Query("2025-26", description="Season to compare, e.g. 2025-26"),
     db: AsyncSession = Depends(get_db),
 ):
     try:
@@ -29,7 +30,7 @@ async def compare_players(
     for p in players:
         latest_stats = None
         for s in (p.stats or []):
-            if s.season == "2025-26":
+            if s.season == season:
                 latest_stats = PlayerStatsOut.model_validate(s)
                 break
         items.append(PlayerComparisonItem(
