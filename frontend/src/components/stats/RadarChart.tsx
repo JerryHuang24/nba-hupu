@@ -1,5 +1,5 @@
 import {
-  Radar, RadarChart as ReRadar, PolarGrid, PolarAngleAxis, ResponsiveContainer,
+  Radar, RadarChart as ReRadar, PolarGrid, PolarAngleAxis, ResponsiveContainer, Legend,
 } from "recharts"
 import type { PlayerComparisonItem } from "../../types/player"
 
@@ -58,6 +58,7 @@ export default function ComparisonRadarChart({ players }: Props) {
               strokeWidth={2}
             />
           ))}
+          <Legend />
         </ReRadar>
       </ResponsiveContainer>
     </div>
