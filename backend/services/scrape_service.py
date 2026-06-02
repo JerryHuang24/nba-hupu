@@ -103,15 +103,38 @@ async def _upsert_players(db: AsyncSession, players_data: list[dict]) -> dict:
 
 
 async def _upsert_stats(db: AsyncSession, stats_data: list[dict], season: str) -> dict:
-    # Build player lookup: nba_id -> local id
     player_result = await db.execute(select(Player.nba_id, Player.id))
     player_map = {row[0]: row[1] for row in player_result.fetchall()}
 
     added = 0
+    new_players_added = 0
     for s in stats_data:
-        player_id = player_map.get(s.get("PLAYER_ID"))
+        nba_id = s.get("PLAYER_ID")
+        player_id = player_map.get(nba_id)
         if not player_id:
-            continue
+            # Auto-create player from stats data (for historical/retired players)
+            name = s.get("PLAYER_NAME", f"Player {nba_id}")
+            stmt = db_insert(Player).values(
+                nba_id=nba_id,
+                name=name,
+                name_en=name,
+                is_active=False,
+            ).on_conflict_do_update(
+                index_elements=["nba_id"],
+                set_=dict(name=name, name_en=name),
+            )
+            result = await db.execute(stmt)
+            await db.flush()
+            # Get the newly created or existing player's local id
+            row = (await db.execute(
+                select(Player.id).where(Player.nba_id == nba_id)
+            )).first()
+            if row:
+                player_id = row[0]
+                player_map[nba_id] = player_id
+                new_players_added += 1
+            else:
+                continue
 
         stmt = db_insert(PlayerStats).values(
             player_id=player_id,
